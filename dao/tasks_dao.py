@@ -32,8 +32,8 @@ class TasksDAO:
         await session.commit()
 
     @classmethod
-    async def get_tasks_by_user_id(cls, session: AsyncSession, user_tg_id: int):
-        query = select(models.Task).where(models.Task.user_id == user_tg_id)
+    async def get_tasks_by_user_id(cls, session: AsyncSession, user_id: int):
+        query = select(models.Task).where(models.Task.user_id == user_id)
         items = await session.execute(query)
 
         return items.scalars().all()

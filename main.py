@@ -1,26 +1,20 @@
-# ADD YOUR BOT TOKEN AT ".env" FILE ! #
-# AND YOU SHOULD ADD ".env" FILE AT ".gitignore" FILE !!! #
-
 import asyncio
 import logging
 import os
-
-from dotenv import load_dotenv
 
 # Aiogram Imports #
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommandScopeDefault
 
 # My Imports #
+from config import Settings
 from handlers.user_handler import user_private_router
 from bot_commands.bot_commands_list import private
 
-load_dotenv()
-
 from database.engine import create_db, drop_db, session_maker
-from middlewares.db import DataBaseSession
+from middlewares.db_middleware import DataBaseSession
 
-token = os.getenv("TOKEN")
+token = Settings.TOKEN
 
 bot = Bot(token=token)
 dp = Dispatcher()

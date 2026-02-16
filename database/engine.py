@@ -3,7 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from database.models import Base
 
-engine = create_async_engine(os.getenv('DB_LITE'), echo=True)
+from config import Settings
+
+current_db_url = Settings.CURRENT_DB_URL
+
+engine = create_async_engine(current_db_url, echo=True,
+                             future=True,     # Use new SQLAlchemy 2.0 features
+                             pool_pre_ping=True,  # Check connection before use  
+                             pool_recycle=300,    # Reconnect every 300 seconds 
+                             )
 session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 

@@ -1,5 +1,13 @@
 python-dotenv
 aiogram
 aiosqlite
-aiogram~=3.4.1
-SQLAlchemy~=2.0.29
+aiogram
+SQLAlchemy~=2.0.36
+aiosqlite
+asyncpg
+psycopg2-binary~=2.9.9
+alembic~=1.15.1
+greenlet
+itsdangerous
+python-jose
+starlette

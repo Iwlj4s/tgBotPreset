@@ -32,9 +32,7 @@ class ClosedTask(Base):
     __tablename__ = 'closed_tasks'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(Integer, ForeignKey('tasks.id'), nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
+    task_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
     task_name: Mapped[str] = mapped_column(Text, nullable=False)
     task_body: Mapped[str] = mapped_column(Text, nullable=False)
-
-    task: Mapped["Task"] = relationship()

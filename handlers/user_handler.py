@@ -39,9 +39,11 @@ class AddTask(StatesGroup):
 # Start
 @user_private_router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession):
+    print("COMMAND START")
     await user_repository.add_user(user_tg_id=message.from_user.id,
                                    user_name=message.from_user.first_name,
                                    session=session)
+    print("AFTER add_user")
     await message.answer(f"Hi, {message.from_user.first_name} !")
     await message.answer(f"Вы зарегистрированы!",
                          reply_markup=reply.main_keyboard)
@@ -49,7 +51,10 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 @user_private_router.message(StateFilter("*"), F.text.lower() == "просмотр текущих задач")
 async def view_tasks(message: Message, session: AsyncSession):
-    tasks = await TasksDAO.get_tasks_by_user_id(session=session, user_tg_id=message.from_user.id)
+    current_user = await GeneralDAO.get_item_by_tg_id(session=session, 
+                                                      item=models.User,
+                                                      item_tg_id=message.from_user.id)
+    tasks = await TasksDAO.get_tasks_by_user_id(session=session, user_id=current_user.id)
 
     await message.answer(f"Ваши задачи:",
                          reply_markup=reply.main_keyboard)
@@ -64,9 +69,12 @@ async def view_tasks(message: Message, session: AsyncSession):
 
 @user_private_router.message(StateFilter("*"), F.text.lower() == "просмотр закрытых задач")
 async def view_closed_tasks(message: Message, session: AsyncSession):
-    closed_tasks = await TasksDAO.get_closed_tasks_by_user_id(session=session, user_tg_id=message.from_user.id)
+    current_user = await GeneralDAO.get_item_by_tg_id(session=session, 
+                                                      item=models.User,
+                                                      item_tg_id=message.from_user.id)
+    closed_tasks = await TasksDAO.get_closed_tasks_by_user_id(session=session, user_tg_id=current_user.id)
 
-    await message.answer(f"Ваши закрытые задачи:",
+    await message.answer(f"Ваши закрытые задачи:\n",
                          reply_markup=reply.main_keyboard)
     for closed_task in closed_tasks:
         await message.answer(f"{closed_task.task_name}\n"
@@ -159,7 +167,6 @@ async def back_handler(message: Message, state: FSMContext):
 @user_private_router.message(or_f(Command("add_task"), (F.text.lower() == "создать задачу")))
 @user_private_router.message(StateFilter(None), Command("add_task"))
 async def add_task(message: Message, state: FSMContext):
-    await state.update_data(user_id=message.from_user.id)
     await message.answer(f"Введите название задачи",
                          reply_markup=reply.cancel_keyboard)
 
@@ -186,12 +193,18 @@ async def add_task_body(message: Message, state: FSMContext):
 
 @user_private_router.message(AddTask.confirm_task, F.text.lower() == "добавить задачу")
 async def confirm_task(message: Message, state: FSMContext, session: AsyncSession):
+    user = await GeneralDAO.get_item_by_tg_id(session=session,
+                                              item=models.User,
+                                              item_tg_id=message.from_user.id)
+    
+    await state.update_data(user_id=user.id)
     task_data = await state.get_data()
+    print(f"TASK DATA: {task_data}")
 
     await user_repository.add_task(data=task_data, session=session)
-    await message.answer(f"Вот ваша задача:\n"
-                         f"{task_data["task_name"]}\n"
-                         f"{task_data["task_body"]}",
+    task_name = task_data["task_name"]
+    task_body = task_data["task_body"]
+    await message.answer(f"Вот ваша задача:\n{task_name}\n{task_body}",
                          reply_markup=reply.main_keyboard)
 
     await state.clear()
