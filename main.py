@@ -13,6 +13,7 @@ from bot_commands.bot_commands_list import private
 
 from database.engine import create_db, drop_db, session_maker
 from middlewares.db_middleware import DataBaseSession
+from middlewares.user_context_middleware import UserContextMiddleware
 
 token = Settings.TOKEN
 
@@ -39,6 +40,7 @@ async def main():
     dp.shutdown.register(shutdown)
 
     dp.update.middleware(DataBaseSession(session_pool=session_maker))
+    dp.update.middleware(UserContextMiddleware())   # !!! AFTER DataBaseSession for session already has been created !!!
     await bot.set_my_commands(commands=private, scope=BotCommandScopeDefault())
     await dp.start_polling(bot)
 

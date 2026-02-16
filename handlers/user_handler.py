@@ -12,9 +12,11 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from context.request_context import RequestContext
 from dao.general_dao import GeneralDAO
 from dao.tasks_dao import TasksDAO
 from database import models
+
 # My Imports #
 from keyboards import reply
 from keyboards.inline import get_callback_btns
@@ -38,23 +40,18 @@ class AddTask(StatesGroup):
 
 # Start
 @user_private_router.message(CommandStart())
-async def cmd_start(message: Message, session: AsyncSession):
-    print("COMMAND START")
-    await user_repository.add_user(user_tg_id=message.from_user.id,
-                                   user_name=message.from_user.first_name,
-                                   session=session)
-    print("AFTER add_user")
-    await message.answer(f"Hi, {message.from_user.first_name} !")
-    await message.answer(f"Вы зарегистрированы!",
-                         reply_markup=reply.main_keyboard)
+async def cmd_start(message: Message, request_context: RequestContext):
+    user = request_context.current_user
+    await message.answer(f"Hi, {user.name}!")
+    await message.answer("You has been registered!", reply_markup=reply.main_keyboard)
 
 
 @user_private_router.message(StateFilter("*"), F.text.lower() == "просмотр текущих задач")
-async def view_tasks(message: Message, session: AsyncSession):
-    current_user = await GeneralDAO.get_item_by_tg_id(session=session, 
-                                                      item=models.User,
-                                                      item_tg_id=message.from_user.id)
-    tasks = await TasksDAO.get_tasks_by_user_id(session=session, user_id=current_user.id)
+async def view_tasks(message: Message, request_context: RequestContext):
+
+    tasks = await TasksDAO.get_tasks_by_user_id(session=request_context.session, 
+                                                user_id=request_context.current_user.id
+                                                )
 
     await message.answer(f"Ваши задачи:",
                          reply_markup=reply.main_keyboard)
@@ -68,11 +65,10 @@ async def view_tasks(message: Message, session: AsyncSession):
 
 
 @user_private_router.message(StateFilter("*"), F.text.lower() == "просмотр закрытых задач")
-async def view_closed_tasks(message: Message, session: AsyncSession):
-    current_user = await GeneralDAO.get_item_by_tg_id(session=session, 
-                                                      item=models.User,
-                                                      item_tg_id=message.from_user.id)
-    closed_tasks = await TasksDAO.get_closed_tasks_by_user_id(session=session, user_tg_id=current_user.id)
+async def view_closed_tasks(message: Message, request_context: RequestContext):
+    closed_tasks = await TasksDAO.get_closed_tasks_by_user_id(session=request_context.session,
+                                                              user_id=request_context.current_user.id
+                                                              )
 
     await message.answer(f"Ваши закрытые задачи:\n",
                          reply_markup=reply.main_keyboard)
@@ -87,15 +83,18 @@ async def view_closed_tasks(message: Message, session: AsyncSession):
 
 # Close task callback
 @user_private_router.callback_query(F.data.startswith("close_task_"))
-async def close_task(callback_query: CallbackQuery, session: AsyncSession):
+async def close_task(callback_query: CallbackQuery, request_context: RequestContext):
     task_id = int(callback_query.data.split('_')[-1])
-    user_tg_id = callback_query.from_user.id
 
-    task = await GeneralDAO.get_item_by_id(session=session,
-                                           item_id=task_id,
-                                           item=models.Task)
+    task = await TasksDAO.get_task_by_user_id(session=request_context.session,
+                                              user_id=request_context.current_user.id,
+                                              task_id=task_id)
+    
+    if not task:
+        await callback_query.answer("Задача не найдена или не принадлежит вам!")
+        return
 
-    await TasksDAO.add_closed_task(session=session,
+    await TasksDAO.add_closed_task(session=request_context.session,
                                    data=task,
                                    old_task=task)
 
@@ -105,7 +104,7 @@ async def close_task(callback_query: CallbackQuery, session: AsyncSession):
 
 # Delete task
 @user_private_router.callback_query(or_f(F.data.startswith("delete_task_"), F.data.startswith("delete_closed_task_")))
-async def delete_task(callback_query: CallbackQuery, session: AsyncSession):
+async def delete_task(callback_query: CallbackQuery, request_context: RequestContext):
     task_id = int(callback_query.data.split('_')[-1])
     item = None
 
@@ -116,14 +115,11 @@ async def delete_task(callback_query: CallbackQuery, session: AsyncSession):
         print("УДаляется закрытая")
         item = models.ClosedTask
 
-    task = await GeneralDAO.get_item_by_id(session=session, item=item, item_id=task_id)
-
-    if not task:
-        await callback_query.answer("Задача не найдена!")
-        return
-
+    task = await TasksDAO.get_task_by_user_id(session=request_context.session,
+                                              user_id=request_context.current_user.id,
+                                              task_id=task_id)
     try:
-        await GeneralDAO.delete_item(session=session, item=item, item_id=task_id)
+        await GeneralDAO.delete_item(session=request_context.session, item=item, item_id=task_id)
         await callback_query.answer("Вы удалили задачу!")
         await callback_query.message.answer(f"Вы удалили задачу! {task.task_name}")
     except Exception as e:
@@ -192,8 +188,8 @@ async def add_task_body(message: Message, state: FSMContext):
 
 
 @user_private_router.message(AddTask.confirm_task, F.text.lower() == "добавить задачу")
-async def confirm_task(message: Message, state: FSMContext, session: AsyncSession):
-    user = await GeneralDAO.get_item_by_tg_id(session=session,
+async def confirm_task(message: Message, state: FSMContext, request_context: RequestContext):
+    user = await GeneralDAO.get_item_by_tg_id(session=request_context.session,
                                               item=models.User,
                                               item_tg_id=message.from_user.id)
     
@@ -201,7 +197,7 @@ async def confirm_task(message: Message, state: FSMContext, session: AsyncSessio
     task_data = await state.get_data()
     print(f"TASK DATA: {task_data}")
 
-    await user_repository.add_task(data=task_data, session=session)
+    await user_repository.add_task(data=task_data, session=request_context.session)
     task_name = task_data["task_name"]
     task_body = task_data["task_body"]
     await message.answer(f"Вот ваша задача:\n{task_name}\n{task_body}",

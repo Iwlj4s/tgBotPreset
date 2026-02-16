@@ -39,8 +39,17 @@ class TasksDAO:
         return items.scalars().all()
 
     @classmethod
-    async def get_closed_tasks_by_user_id(cls, session: AsyncSession, user_tg_id: int):
-        query = select(models.ClosedTask).where(models.ClosedTask.user_id == user_tg_id)
+    async def get_closed_tasks_by_user_id(cls, session: AsyncSession, user_id: int):
+        query = select(models.ClosedTask).where(models.ClosedTask.user_id == user_id)
         items = await session.execute(query)
 
         return items.scalars().all()
+    
+    @classmethod
+    async def get_task_by_user_id(cls, session: AsyncSession, user_id: int, task_id: int):
+        query = select(models.Task).where(models.Task.user_id == user_id,
+                                          models.Task.id == task_id)
+        
+        task = await session.execute(query)
+
+        return task.scalar_one_or_none()

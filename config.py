@@ -12,9 +12,6 @@ class Settings:
     """
     Application settings management class.
     All configuration parameters are loaded from environment variables.
-    
-    To generate SECRET_KEY use:
-    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
     """
 
     # SQLITE #
